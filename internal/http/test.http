@@ -1,0 +1,11 @@
+@url = http://localhost:8080
+@urlv1 = {{url}}/v1
+
+###
+GET {{url}}/
+
+###
+GET {{urlv1}}/about
+
+###
+GET {{urlv1}}/admin
