@@ -11,6 +11,7 @@ Simple Personal Blog with Basic Authentication
 - HTTP Router and URL Matcher with [mux](https://github.com/gorilla/mux)
 - Slugify with [slug](https://github.com/gosimple/slug)
 - Markdown Parser with [goldmark](https://github.com/yuin/goldmark)
+- HTML Template [html/template](https://pkg.go.dev/html/template)
 - CSV Parser with [standard library](https://pkg.go.dev/encoding/csv)
 - Project template with [go-blueprint](https://github.com/Melkeydev/go-blueprint)
 - Live reload with [air](https://github.com/air-verse/air)
