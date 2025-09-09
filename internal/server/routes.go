@@ -1,7 +1,9 @@
 package server
 
 import (
+	"encoding/base64"
 	"net/http"
+	"strings"
 
 	"github.com/gorilla/mux"
 )
@@ -9,6 +11,7 @@ import (
 func (s *Server) RegisterRoutes() http.Handler {
 	r := mux.NewRouter()
 	r.Use(s.corsMiddleware)
+	r.Use(s.basicAuthentication)
 
 	r.HandleFunc("/", s.HelloWorldHandler)
 
@@ -41,7 +44,30 @@ func (s *Server) corsMiddleware(next http.Handler) http.Handler {
 
 func (s *Server) basicAuthentication(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		decodeCredentials(r.Header.Get("Authorization"))
+		// first request will have no authorization header
+		authHeader := r.Header.Get("Authorization")
+		if authHeader == "" {
+			w.Header().Set("WWW-Authenticate", `Basic realm="Restricted"`)
+			http.Error(w, "Unauthorized", http.StatusUnauthorized)
+			return
+		}
+
+		// remove prefix "Authorization: Basic " from header
+		encodedBase64 := authHeader[len("Basic "):]
+
+		payload, err := base64.StdEncoding.DecodeString(encodedBase64)
+		if err != nil {
+			w.Header().Set("WWW-Authenticate", `Basic realm="Restricted"`)
+			http.Error(w, "Unauthorized", http.StatusUnauthorized)
+			return
+		}
+
+		parts := strings.SplitN(string(payload), ":", 2)
+		if parts[0] != "admin" || parts[1] != "admin" {
+			w.Header().Set("WWW-Authenticate", `Basic realm="Restricted"`)
+			http.Error(w, "Unauthorized", http.StatusUnauthorized)
+			return
+		}
 
 		next.ServeHTTP(w, r)
 	})
