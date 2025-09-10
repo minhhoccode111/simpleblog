@@ -1,0 +1,23 @@
+# Imagine the flow
+
+- `GET /`:
+  - redirect to `/articles`
+- `GET /articles`
+  - list all published articles
+- `GET /articles/:slug`
+  - read an article (only if it's published)
+- `GET /admin`
+  - basic authentication
+  - redirect to `/admin/articles`
+- `GET /admin/articles`
+  - list all articles
+- `GET /admin/articles?action=new`
+  - display the form editor
+- `POST /admin/articles`
+  - save new article
+- `GET /admin/articles/:slug?action=edit`
+  - display the form editor fill with existed data
+- `PUT /admin/articles/:slug`
+  - save the edited data
+- `DELETE /admin/articles/:slug`
+  - delete an article
