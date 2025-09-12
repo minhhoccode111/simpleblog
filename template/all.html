@@ -6,9 +6,8 @@
 
 <header>
   <h1>{{.Title}}</h1>
-  <!-- navigate to /admin/articles?action=new -->
-  <form action="/admin/articles" method="get">
-    <input type="hidden" name="action" value="new" />
+
+  <form action="/admin/articles?action=new" method="get">
     <button type="submit">Add</button>
   </form>
 </header>

@@ -3,8 +3,8 @@ Test Unpublished Article
 2026-09-10
 ---
 
-# header 1
+# this is an unpublished article
 
-###### header 6
-
-_tai vi sao_
+```bash
+# this is a bash code block
+```

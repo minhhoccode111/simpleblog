@@ -1,5 +1,7 @@
 # Imagine the flow
 
+**NOTE**: Forms can't send `PUT` and `DELETE` request
+
 - `GET /`:
   - redirect to `/articles`
 - `GET /articles`
@@ -17,7 +19,7 @@
   - save new article
 - `GET /admin/articles/:slug?action=edit`
   - display the form editor fill with existed data
-- `PUT /admin/articles/:slug`
+- `POST /admin/articles/:slug?action=edit`
   - save the edited data
-- `DELETE /admin/articles/:slug`
+- `POST /admin/articles/:slug?action=delete`
   - delete an article

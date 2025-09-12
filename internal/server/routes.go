@@ -38,7 +38,7 @@ func (p *Page) save() error {
 		"---",
 	}
 
-	body = append(body, []byte(strings.Join(metadata, "\n")+"\n")...)
+	body = append(body, []byte(strings.Join(metadata, "\n")+"\n")...) // 1 extra new line
 	body = append(body, p.Body...)
 
 	return os.WriteFile(filename, body, 0600)

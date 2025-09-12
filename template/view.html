@@ -1,7 +1,9 @@
 <h1>{{.Title}}</h1>
 
-<i>{{.Published}}</i>
+<i>{{.PubDate}}</i>
 
-<p>[<a href="/edit/{{.Title}}">edit</a>]</p>
+<form action="/admin/articles/{{.Slug}}?action=edit" method="get">
+  <input type="submit" value="Edit" />
+</form>
 
 <div>{{.Body}}</div>

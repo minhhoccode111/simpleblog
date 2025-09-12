@@ -3,8 +3,8 @@ Test Published Article
 2025-09-10
 ---
 
-# header 1
+# this is a published article
 
-###### header 6
-
-**tai vi sao**
+```bash
+# this is a bash code block
+```
