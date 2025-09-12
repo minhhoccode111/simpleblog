@@ -2,18 +2,20 @@ package server
 
 import (
 	"bufio"
+	"bytes"
 	"encoding/base64"
 	"fmt"
+	"html/template"
 	"io"
 	"log"
 	"net/http"
 	"os"
 	"regexp"
 	"strings"
-	"text/template"
 	"time"
 
 	"github.com/gorilla/mux"
+	"github.com/yuin/goldmark"
 )
 
 type Page struct {
@@ -23,11 +25,31 @@ type Page struct {
 	PubDate time.Time
 }
 
+type PageHTML struct {
+	Title   string
+	Slug    string
+	Body    template.HTML
+	PubDate time.Time
+}
+
 const timeFormat = "2006-01-02"
 
 var templates = template.Must(template.ParseGlob("template/*.html"))
 var linkRegex = regexp.MustCompile(`\[(.*?)\]`)
+var validPath = regexp.MustCompile(`^/(admin/)?(articles(/([a-zA-Z0-9-]+))?/?(\?.*)?)?$`)
 
+func (p *Page) toPageHTML() (*PageHTML, error) {
+	var buf bytes.Buffer
+	if err := goldmark.Convert(p.Body, &buf); err != nil {
+		return nil, err
+	}
+	return &PageHTML{
+		p.Title,
+		p.Slug,
+		template.HTML(buf.String()),
+		p.PubDate,
+	}, nil
+}
 func (p *Page) save() error {
 	filename := "data/" + p.Slug + ".md"
 	var body []byte
@@ -70,6 +92,7 @@ func loadPage(slug string) (*Page, error) {
 			continue
 		}
 
+		// FIX: 2025/09/12 21:36:49 %!w(*fmt.wrapError=&{parsing time "Test Published Article\x0a" as "2006-01-02": cannot parse "Test Published Article\x0a" as "2006" 0xc0000eeb90})
 		lineTime, err := time.Parse(timeFormat, line)
 		if err != nil {
 			return nil, fmt.Errorf("%w", err)
@@ -83,6 +106,32 @@ func loadPage(slug string) (*Page, error) {
 	}
 
 	return &Page{title, slug, rest, pubDate}, nil
+}
+
+func renderTemplate(w http.ResponseWriter, tmpl string, p *Page) {
+	var err error
+
+	switch tmpl {
+	case "view":
+		pHtml, err := p.toPageHTML()
+		if err != nil {
+			break
+		}
+		err = templates.ExecuteTemplate(w, "view.html", *pHtml)
+	case "edit":
+		err = templates.ExecuteTemplate(w, "edit.html", p)
+	case "all":
+		err = templates.ExecuteTemplate(w, "all.html", p)
+	default:
+	}
+
+	if err != nil {
+		http.Error(
+			w,
+			fmt.Sprintf("Error executing template: %v", err),
+			http.StatusInternalServerError,
+		)
+	}
 }
 
 func unauthorizedResponse(w http.ResponseWriter) {
@@ -124,10 +173,15 @@ func (s *Server) IndexHandler(w http.ResponseWriter, r *http.Request) {
 func (s *Server) GetAllPublishedArticlesHandler(w http.ResponseWriter, r *http.Request) {
 
 }
-func (s *Server) GetPublishedArticleHandler(w http.ResponseWriter, r *http.Request) {
-	vars := mux.Vars(r)
-	slug := vars["slug"]
-	w.Write([]byte("slug: " + slug))
+func (s *Server) GetPublishedArticleHandler(w http.ResponseWriter, r *http.Request, slug string) {
+	page, err := loadPage(slug)
+	// TODO: not found here redirect to create new wiki page
+	if err != nil {
+		log.Printf("%w", err)
+		http.NotFound(w, r)
+		return
+	}
+	renderTemplate(w, "view", page)
 }
 
 // auth
@@ -140,11 +194,21 @@ func (s *Server) AdminUpdateArticleGetHandler(w http.ResponseWriter, r *http.Req
 func (s *Server) AdminUpdateArticleHandler(w http.ResponseWriter, r *http.Request)    {}
 func (s *Server) AdminDeleteArticleHandler(w http.ResponseWriter, r *http.Request)    {}
 
+// makeHandler act like a middleware that extract slug from Path and pass it to
+// handler, we might not need to use it since mux is good enough
+func makeHandler(fn func(http.ResponseWriter, *http.Request, string)) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		vars := mux.Vars(r)
+		slug := vars["slug"]
+		fn(w, r, slug)
+	}
+}
+
 func (s *Server) RegisterRoutes() http.Handler {
 	r := mux.NewRouter()
 	r.HandleFunc("/", s.IndexHandler).Methods("GET")
 	r.HandleFunc("/articles", s.GetAllPublishedArticlesHandler).Methods("GET")
-	r.HandleFunc("/articles/{slug}", s.GetPublishedArticleHandler).Methods("GET")
+	r.HandleFunc("/articles/{slug}", makeHandler(s.GetPublishedArticleHandler)).Methods("GET")
 
 	// Admin subrouter with authentication
 	adminRouter := r.PathPrefix("/admin").Subrouter()
