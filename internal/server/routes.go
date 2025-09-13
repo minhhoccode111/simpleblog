@@ -224,6 +224,11 @@ func makeHandler(fn func(http.ResponseWriter, *http.Request, string)) http.Handl
 
 func (s *Server) RegisterRoutes() http.Handler {
 	r := mux.NewRouter()
+
+	// serve static files
+	r.PathPrefix("/static/").
+		Handler(http.StripPrefix("/static/", http.FileServer(http.Dir("static"))))
+
 	r.HandleFunc("/", s.IndexHandler).Methods("GET")
 	r.HandleFunc("/articles", s.GetAllPublishedArticlesHandler).Methods("GET")
 	r.HandleFunc("/articles/{slug}", makeHandler(s.GetPublishedArticleHandler)).Methods("GET")
