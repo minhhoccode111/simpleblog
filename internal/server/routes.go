@@ -233,20 +233,27 @@ func (s *Server) GetAllPublishedArticlesHandler(w http.ResponseWriter, r *http.R
 }
 func (s *Server) GetPublishedArticleHandler(w http.ResponseWriter, r *http.Request, slug string) {
 	page, err := loadPage(slug)
+	if err != nil && os.IsNotExist(err) {
+		http.Redirect(
+			w,
+			r,
+			fmt.Sprintf("/admin/articles?action=create&slug=%s", slug),
+			http.StatusSeeOther,
+		)
+		return
+	}
+
 	if err != nil {
-		log.Printf("Error: %s", err.Error())
-		if os.IsNotExist(err) {
-			http.Redirect(
-				w,
-				r,
-				fmt.Sprintf("/admin/articles?action=create&slug=%s", slug),
-				http.StatusSeeOther,
-			)
-			return
-		}
 		renderErrorTemplate(w, err)
 		return
 	}
+
+	today := time.Now().Format(timeFormat)
+	if page.PubDate.Format(timeFormat) > today {
+		renderErrorTemplate(w, fmt.Errorf("Unpublished Article"))
+		return
+	}
+
 	renderTemplate(w, "view", page)
 }
 
@@ -313,7 +320,7 @@ func (s *Server) RegisterRoutes() http.Handler {
 	// with ?action=create
 	adminRouter.HandleFunc("/articles", s.AdminGetAllArticlesHandler).Methods("GET")
 	adminRouter.HandleFunc("/articles", s.AdminCreateArticleHandler).Methods("POST")
-	// with ?action=edit
+	// assume that admin get to edit, so return edit view
 	adminRouter.HandleFunc("/articles/{slug}", makeHandler(s.AdminUpdateArticleGetHandler)).
 		Methods("GET")
 	// with ?action=edit because a html form can't send PUT request
