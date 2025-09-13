@@ -262,19 +262,21 @@ func (s *Server) AdminGetAllArticlesHandler(w http.ResponseWriter, r *http.Reque
 func (s *Server) AdminCreateArticleHandler(w http.ResponseWriter, r *http.Request) {}
 func (s *Server) AdminUpdateArticleGetHandler(w http.ResponseWriter, r *http.Request, slug string) {
 	page, err := loadPage(slug)
-	if err != nil && !os.IsNotExist(err) {
-		renderErrorTemplate(w, err)
-		return
-	}
-
-	// page is not existed
-	if page == nil {
-		page = &Page{
-			slug,
-			slug,
-			[]byte{},
-			time.Now(),
+	// error occurs and not not found file error
+	if err != nil {
+		if !os.IsNotExist(err) {
+			renderErrorTemplate(w, err)
+			return
 		}
+
+		// not found file, redirect to create
+		http.Redirect(
+			w,
+			r,
+			fmt.Sprintf("/admin/articles?action=create&slug=%s", slug),
+			http.StatusSeeOther,
+		)
+		return
 	}
 
 	renderTemplate(w, "edit", page)
