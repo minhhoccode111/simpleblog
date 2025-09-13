@@ -29,7 +29,7 @@ type PageHTML struct {
 	Title   string
 	Slug    string
 	Body    template.HTML
-	PubDate time.Time
+	PubDate string
 }
 
 const timeFormat = "2006-01-02"
@@ -47,7 +47,7 @@ func (p *Page) toPageHTML() (*PageHTML, error) {
 		p.Title,
 		p.Slug,
 		template.HTML(buf.String()),
-		p.PubDate,
+		p.PubDate.Format(timeFormat),
 	}, nil
 }
 func (p *Page) save() error {
@@ -161,7 +161,6 @@ func (s *Server) basicAuthentication(next http.Handler) http.Handler {
 		}
 
 		log.Printf("logged in: %v", parts)
-
 		next.ServeHTTP(w, r)
 	})
 }
@@ -177,7 +176,6 @@ func (s *Server) GetPublishedArticleHandler(w http.ResponseWriter, r *http.Reque
 	page, err := loadPage(slug)
 	// TODO: not found here redirect to create new wiki page
 	if err != nil {
-		log.Printf("%w", err)
 		http.NotFound(w, r)
 		return
 	}

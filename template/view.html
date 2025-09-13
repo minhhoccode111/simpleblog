@@ -1,9 +1,33 @@
-<h1>{{.Title}}</h1>
+<style>
+  header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+  }
+  i {
+    text-align: right;
+  }
+  .wrapper {
+    max-width: 60rem;
+    margin: auto;
+  }
+  .right {
+    text-align: right;
+  }
+</style>
 
-<i>{{.PubDate}}</i>
+<div class="wrapper">
+  <header>
+    <h1>{{.Title}}</h1>
 
-<form action="/admin/articles/{{.Slug}}?action=edit" method="get">
-  <input type="submit" value="Edit" />
-</form>
+    <form action="/admin/articles/{{.Slug}}?action=edit" method="get">
+      <input type="submit" value="Edit" />
+    </form>
+  </header>
 
-<div>{{.Body}}</div>
+  <p class="right">
+    <i>{{.PubDate}}</i>
+  </p>
+
+  <div>{{.Body}}</div>
+</div>
