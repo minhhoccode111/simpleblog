@@ -1,11 +1,12 @@
+<head>
+  <link rel="stylesheet" href="/asset/index.css" />
+</head>
+
 <style>
   header {
     display: flex;
     align-items: center;
     justify-content: space-between;
-  }
-  i {
-    text-align: right;
   }
   .wrapper {
     max-width: 60rem;
@@ -20,7 +21,8 @@
   <header>
     <h1>{{.Title}}</h1>
 
-    <form action="/admin/articles/{{.Slug}}?action=edit" method="get">
+    <form action="/admin/articles/{{.Slug}}" method="get">
+      <input type="hidden" name="action" value="edit" />
       <input type="submit" value="Edit" />
     </form>
   </header>

@@ -25,31 +25,12 @@ type Page struct {
 	PubDate time.Time
 }
 
-type PageHTML struct {
-	Title   string
-	Slug    string
-	Body    template.HTML
-	PubDate string
-}
-
 const timeFormat = "2006-01-02"
 
 var templates = template.Must(template.ParseGlob("template/*.html"))
 var linkRegex = regexp.MustCompile(`\[(.*?)\]`)
 var validPath = regexp.MustCompile(`^/(admin/)?(articles(/([a-zA-Z0-9-]+))?/?(\?.*)?)?$`)
 
-func (p *Page) toPageHTML() (*PageHTML, error) {
-	var buf bytes.Buffer
-	if err := goldmark.Convert(p.Body, &buf); err != nil {
-		return nil, err
-	}
-	return &PageHTML{
-		p.Title,
-		p.Slug,
-		template.HTML(buf.String()),
-		p.PubDate.Format(timeFormat),
-	}, nil
-}
 func (p *Page) save() error {
 	filename := "data/" + p.Slug + ".md"
 	var body []byte
@@ -113,13 +94,20 @@ func renderTemplate(w http.ResponseWriter, tmpl string, p *Page) {
 
 	switch tmpl {
 	case "view":
-		pHtml, err := p.toPageHTML()
-		if err != nil {
+		// parse markdown before viewing
+		var buf bytes.Buffer
+		if err = goldmark.Convert(p.Body, &buf); err != nil {
 			break
 		}
-		err = templates.ExecuteTemplate(w, "view.html", *pHtml)
+		err = templates.ExecuteTemplate(w, "view.html", struct {
+			Title, Slug, PubDate string
+			Body                 template.HTML
+		}{p.Title, p.Slug, p.PubDate.Format(timeFormat), template.HTML(buf.String())})
 	case "edit":
-		err = templates.ExecuteTemplate(w, "edit.html", p)
+		err = templates.ExecuteTemplate(w, "edit.html", struct {
+			Title, Slug, PubDate string
+			Body                 []byte
+		}{p.Title, p.Slug, p.PubDate.Format(timeFormat), p.Body})
 	case "all":
 		err = templates.ExecuteTemplate(w, "all.html", p)
 	default:
@@ -176,6 +164,16 @@ func (s *Server) GetPublishedArticleHandler(w http.ResponseWriter, r *http.Reque
 	page, err := loadPage(slug)
 	// TODO: not found here redirect to create new wiki page
 	if err != nil {
+		log.Printf("Error: %s", err.Error())
+		if os.IsNotExist(err) {
+			http.Redirect(
+				w,
+				r,
+				fmt.Sprintf("/admin/articles?action=create&slug=%s", slug),
+				http.StatusSeeOther,
+			)
+			return
+		}
 		http.NotFound(w, r)
 		return
 	}
@@ -186,11 +184,33 @@ func (s *Server) GetPublishedArticleHandler(w http.ResponseWriter, r *http.Reque
 func (s *Server) AdminIndexHandler(w http.ResponseWriter, r *http.Request) {
 	http.Redirect(w, r, "/admin/articles", http.StatusFound)
 }
-func (s *Server) AdminGetAllArticlesHandler(w http.ResponseWriter, r *http.Request)   {}
-func (s *Server) AdminCreateArticleHandler(w http.ResponseWriter, r *http.Request)    {}
-func (s *Server) AdminUpdateArticleGetHandler(w http.ResponseWriter, r *http.Request) {}
-func (s *Server) AdminUpdateArticleHandler(w http.ResponseWriter, r *http.Request)    {}
-func (s *Server) AdminDeleteArticleHandler(w http.ResponseWriter, r *http.Request)    {}
+func (s *Server) AdminGetAllArticlesHandler(w http.ResponseWriter, r *http.Request) {
+	// TODO: if action=create, display create form
+	// if slug=some-slug, pre-fill slug to form (or we should redirect to edit handler?)
+	// else display all articles
+}
+func (s *Server) AdminCreateArticleHandler(w http.ResponseWriter, r *http.Request) {}
+func (s *Server) AdminUpdateArticleGetHandler(w http.ResponseWriter, r *http.Request, slug string) {
+	page, err := loadPage(slug)
+	if err != nil && !os.IsNotExist(err) {
+		http.Error(w, "Internal Server Error", http.StatusInternalServerError)
+		return
+	}
+
+	// page is not existed
+	if page == nil {
+		page = &Page{
+			slug,
+			slug,
+			[]byte{},
+			time.Now(),
+		}
+	}
+
+	renderTemplate(w, "edit", page)
+}
+func (s *Server) AdminUpdateArticleHandler(w http.ResponseWriter, r *http.Request) {}
+func (s *Server) AdminDeleteArticleHandler(w http.ResponseWriter, r *http.Request) {}
 
 // makeHandler act like a middleware that extract slug from Path and pass it to
 // handler, we might not need to use it since mux is good enough
@@ -213,12 +233,15 @@ func (s *Server) RegisterRoutes() http.Handler {
 	adminRouter.Use(s.basicAuthentication)
 
 	adminRouter.HandleFunc("/", s.AdminIndexHandler).Methods("GET")
-	// with ?action=new
+	// with ?action=create
 	adminRouter.HandleFunc("/articles", s.AdminGetAllArticlesHandler).Methods("GET")
 	adminRouter.HandleFunc("/articles", s.AdminCreateArticleHandler).Methods("POST")
 	// with ?action=edit
-	adminRouter.HandleFunc("/articles/{slug}", s.AdminUpdateArticleGetHandler).Methods("GET")
-	adminRouter.HandleFunc("/articles/{slug}", s.AdminUpdateArticleHandler).Methods("PUT")
-	adminRouter.HandleFunc("/articles/{slug}", s.AdminDeleteArticleHandler).Methods("DELETE")
+	adminRouter.HandleFunc("/articles/{slug}", makeHandler(s.AdminUpdateArticleGetHandler)).
+		Methods("GET")
+	// with ?action=edit because a html form can't send PUT request
+	adminRouter.HandleFunc("/articles/{slug}", s.AdminUpdateArticleHandler).Methods("POST")
+	// with ?action=delete because a html form can't send DELETE request
+	adminRouter.HandleFunc("/articles/{slug}", s.AdminDeleteArticleHandler).Methods("POST")
 	return r
 }

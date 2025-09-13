@@ -13,7 +13,7 @@
   - redirect to `/admin/articles`
 - `GET /admin/articles`
   - list all articles
-- `GET /admin/articles?action=new`
+- `GET /admin/articles?action=create&slug=some-slug`
   - display the form editor
 - `POST /admin/articles`
   - save new article
