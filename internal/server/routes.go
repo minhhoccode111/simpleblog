@@ -108,15 +108,26 @@ func renderTemplate(w http.ResponseWriter, tmpl string, p *Page) {
 			Title, Slug, PubDate string
 			Body                 []byte
 		}{p.Title, p.Slug, p.PubDate.Format(timeFormat), p.Body})
-	case "all":
-		err = templates.ExecuteTemplate(w, "all.html", p)
-	default:
+	case "all-published":
+		// today := time.Now().Format(timeFormat)
+		files, err := os.ReadDir("./data")
+		if err != nil {
+			break
+		}
+		for _, f := range files {
+			slug := strings.TrimSuffix(f.Name(), ".md")
+			log.Printf("%s", slug)
+		}
+		// TODO:
+		err = templates.ExecuteTemplate(w, "all-published.html", p)
+	case "all-admin":
+		err = templates.ExecuteTemplate(w, "all-admin.html", nil)
 	}
 
 	if err != nil {
 		http.Error(
 			w,
-			fmt.Sprintf("Error executing template: %v", err),
+			fmt.Sprintf("Error executing %s.html: %v", tmpl, err),
 			http.StatusInternalServerError,
 		)
 	}
@@ -158,11 +169,10 @@ func (s *Server) IndexHandler(w http.ResponseWriter, r *http.Request) {
 	http.Redirect(w, r, "/articles", http.StatusFound)
 }
 func (s *Server) GetAllPublishedArticlesHandler(w http.ResponseWriter, r *http.Request) {
-
+	renderTemplate(w, "all-published", nil)
 }
 func (s *Server) GetPublishedArticleHandler(w http.ResponseWriter, r *http.Request, slug string) {
 	page, err := loadPage(slug)
-	// TODO: not found here redirect to create new wiki page
 	if err != nil {
 		log.Printf("Error: %s", err.Error())
 		if os.IsNotExist(err) {
@@ -174,7 +184,7 @@ func (s *Server) GetPublishedArticleHandler(w http.ResponseWriter, r *http.Reque
 			)
 			return
 		}
-		http.NotFound(w, r)
+		http.Error(w, "Internal Server Error", http.StatusInternalServerError)
 		return
 	}
 	renderTemplate(w, "view", page)

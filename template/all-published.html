@@ -1,0 +1,26 @@
+<head>
+  <link rel="stylesheet" href="/static/index.css" />
+</head>
+
+<style>
+  header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+  }
+  .wrapper {
+    max-width: 60rem;
+    margin: auto;
+  }
+  .right {
+    text-align: right;
+  }
+</style>
+
+<div class="wrapper">
+  <header>
+    <h1>All Published Articles</h1>
+  </header>
+
+  <main>{{.Body}}</main>
+</div>
