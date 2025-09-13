@@ -81,6 +81,7 @@ func loadPage(slug string) (*Page, error) {
 	// read the first 4 lines
 	for range 4 {
 		line, err := reader.ReadString('\n')
+		line = line[:len(line)-1]
 		if err != nil {
 			return nil, fmt.Errorf("%w", err)
 		}
@@ -92,7 +93,6 @@ func loadPage(slug string) (*Page, error) {
 			continue
 		}
 
-		// FIX: 2025/09/12 21:36:49 %!w(*fmt.wrapError=&{parsing time "Test Published Article\x0a" as "2006-01-02": cannot parse "Test Published Article\x0a" as "2006" 0xc0000eeb90})
 		lineTime, err := time.Parse(timeFormat, line)
 		if err != nil {
 			return nil, fmt.Errorf("%w", err)
