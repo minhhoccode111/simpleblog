@@ -1,44 +1,45 @@
 <head>
   <link rel="stylesheet" href="/static/index.css" />
+  <title>Edit Article</title>
+  <style>
+    header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 1rem;
+    }
+    .wrapper {
+      max-width: 60rem;
+      margin: auto;
+    }
+    .field {
+      display: flex;
+      align-items: center;
+      gap: 1rem;
+      margin-bottom: 1rem;
+    }
+    .field label {
+      flex-shrink: 0; /* Prevent label from shrinking */
+      min-width: 120px; /* Set minimum width for labels */
+    }
+
+    .field input {
+      flex: 1; /* Take all remaining space */
+    }
+
+    .field-vertical {
+      display: flex;
+      flex-direction: column;
+      gap: 0.5rem;
+      margin-bottom: 1rem;
+    }
+
+    .field-vertical textarea {
+      width: 100%;
+      box-sizing: border-box;
+    }
+  </style>
 </head>
-
-<style>
-  header {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-  }
-  .wrapper {
-    max-width: 60rem;
-    margin: auto;
-  }
-  .field {
-    display: flex;
-    align-items: center;
-    gap: 1rem;
-    margin-bottom: 1rem;
-  }
-  .field label {
-    flex-shrink: 0; /* Prevent label from shrinking */
-    min-width: 120px; /* Set minimum width for labels */
-  }
-
-  .field input {
-    flex: 1; /* Take all remaining space */
-  }
-
-  .field-vertical {
-    display: flex;
-    flex-direction: column;
-    gap: 0.5rem;
-    margin-bottom: 1rem;
-  }
-
-  .field-vertical textarea {
-    width: 100%;
-    box-sizing: border-box;
-  }
-</style>
 
 <form
   class="wrapper"

@@ -1,9 +1,8 @@
 <head>
   <link rel="stylesheet" href="/static/index.css" />
-  <title>View Article</title>
+  <title>Error</title>
   <style>
-    header,
-    header div {
+    header {
       display: flex;
       align-items: center;
       justify-content: space-between;
@@ -21,16 +20,10 @@
 
 <div class="wrapper">
   <header>
-    <div>
-      <h1>{{.Title}}</h1>
-      <i>{{.PubDate}}</i>
-    </div>
-
-    <form action="/admin/articles/{{.Slug}}" method="get">
-      <input type="hidden" name="action" value="edit" />
-      <input type="submit" value="Edit" />
-    </form>
+    <h1>Oops! Something went wrong</h1>
+    <p>
+      <a href="/">← Back to Home</a>
+    </p>
   </header>
-
-  <div>{{.Body}}</div>
+  <p>{{.}}</p>
 </div>

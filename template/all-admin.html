@@ -1,28 +1,31 @@
 <head>
   <link rel="stylesheet" href="/static/index.css" />
+  <title>All Admin</title>
+  <style>
+    header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 1rem;
+    }
+    .wrapper {
+      max-width: 60rem;
+      margin: auto;
+    }
+    .right {
+      text-align: right;
+    }
+  </style>
 </head>
 
-<style>
-  header {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-  }
-  .wrapper {
-    max-width: 60rem;
-    margin: auto;
-  }
-  .right {
-    text-align: right;
-  }
-</style>
+<div class="wrapper">
+  <header>
+    <h1>{{.Title}}</h1>
 
-<header>
-  <h1>{{.Title}}</h1>
+    <form action="/admin/articles?action=create" method="get">
+      <button type="submit">Add</button>
+    </form>
+  </header>
 
-  <form action="/admin/articles?action=create" method="get">
-    <button type="submit">Add</button>
-  </form>
-</header>
-
-<main>{{.Body}}</main>
+  <main>{{.Body}}</main>
+</div>

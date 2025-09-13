@@ -25,6 +25,11 @@ type Page struct {
 	PubDate time.Time
 }
 
+type Metadata struct {
+	Title, Slug string
+	PubDate     string
+}
+
 const timeFormat = "2006-01-02"
 
 var templates = template.Must(template.ParseGlob("template/*.html"))
@@ -45,6 +50,45 @@ func (p *Page) save() error {
 	body = append(body, p.Body...)
 
 	return os.WriteFile(filename, body, 0600)
+}
+
+// loadMetadata works like loadPage but returns Metadata, ignore the Body for performance
+func loadMetadata(slug string) (*Metadata, error) {
+	filename := "data/" + slug + ".md"
+
+	file, err := os.Open(filename)
+	if err != nil {
+		return nil, err
+	}
+	defer file.Close()
+
+	reader := bufio.NewReader(file)
+	var title string
+	var pubDate time.Time
+
+	// read the first 4 lines
+	for range 4 {
+		line, err := reader.ReadString('\n')
+		line = line[:len(line)-1]
+		if err != nil {
+			return nil, fmt.Errorf("%w", err)
+		}
+		if line == "---" {
+			continue
+		}
+		if title == "" {
+			title = line
+			continue
+		}
+
+		lineTime, err := time.Parse(timeFormat, line)
+		if err != nil {
+			return nil, fmt.Errorf("%w", err)
+		}
+		pubDate = lineTime
+	}
+
+	return &Metadata{title, slug, pubDate.Format(timeFormat)}, nil
 }
 
 func loadPage(slug string) (*Page, error) {
@@ -89,6 +133,18 @@ func loadPage(slug string) (*Page, error) {
 	return &Page{title, slug, rest, pubDate}, nil
 }
 
+func renderErrorTemplate(w http.ResponseWriter, err error) {
+	// try to render error
+	err = templates.ExecuteTemplate(w, "error.html", err.Error())
+	if err != nil {
+		http.Error(
+			w,
+			fmt.Sprintf("Error executing: %v", err),
+			http.StatusInternalServerError,
+		)
+	}
+}
+
 func renderTemplate(w http.ResponseWriter, tmpl string, p *Page) {
 	var err error
 
@@ -109,27 +165,31 @@ func renderTemplate(w http.ResponseWriter, tmpl string, p *Page) {
 			Body                 []byte
 		}{p.Title, p.Slug, p.PubDate.Format(timeFormat), p.Body})
 	case "all-published":
-		// today := time.Now().Format(timeFormat)
+		today := time.Now().Format(timeFormat)
 		files, err := os.ReadDir("./data")
 		if err != nil {
 			break
 		}
+		metadataSlice := []*Metadata{}
 		for _, f := range files {
 			slug := strings.TrimSuffix(f.Name(), ".md")
-			log.Printf("%s", slug)
+			metadata, err := loadMetadata(slug)
+			if err != nil {
+				renderErrorTemplate(w, err)
+				return
+			}
+			if metadata.PubDate > today {
+				continue
+			}
+			metadataSlice = append(metadataSlice, metadata)
 		}
-		// TODO:
-		err = templates.ExecuteTemplate(w, "all-published.html", p)
+		err = templates.ExecuteTemplate(w, "all-published.html", metadataSlice)
 	case "all-admin":
 		err = templates.ExecuteTemplate(w, "all-admin.html", nil)
 	}
 
 	if err != nil {
-		http.Error(
-			w,
-			fmt.Sprintf("Error executing %s.html: %v", tmpl, err),
-			http.StatusInternalServerError,
-		)
+		renderErrorTemplate(w, err)
 	}
 }
 
@@ -184,7 +244,7 @@ func (s *Server) GetPublishedArticleHandler(w http.ResponseWriter, r *http.Reque
 			)
 			return
 		}
-		http.Error(w, "Internal Server Error", http.StatusInternalServerError)
+		renderErrorTemplate(w, err)
 		return
 	}
 	renderTemplate(w, "view", page)
@@ -203,7 +263,7 @@ func (s *Server) AdminCreateArticleHandler(w http.ResponseWriter, r *http.Reques
 func (s *Server) AdminUpdateArticleGetHandler(w http.ResponseWriter, r *http.Request, slug string) {
 	page, err := loadPage(slug)
 	if err != nil && !os.IsNotExist(err) {
-		http.Error(w, "Internal Server Error", http.StatusInternalServerError)
+		renderErrorTemplate(w, err)
 		return
 	}
 
