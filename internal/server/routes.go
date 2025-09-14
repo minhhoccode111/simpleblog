@@ -14,7 +14,6 @@ import (
 
 	"github.com/gorilla/mux"
 	Slug "github.com/gosimple/slug"
-	"github.com/joho/godotenv"
 	"github.com/yuin/goldmark"
 )
 
@@ -28,12 +27,16 @@ type Metadata struct {
 	PubDate     string
 }
 
-const timeFormat = "2006-01-02"
+const (
+	timeFormat        = "2006-01-02"
+	dataDirectory     = "data/"
+	templateDirectory = "template/"
+)
 
-var templates = template.Must(template.ParseGlob("template/*.html"))
+var templates = template.Must(template.ParseGlob(templateDirectory + "*.html"))
 
 func (p *Page) save() error {
-	filename := "data/" + p.Slug + ".md"
+	filename := dataDirectory + p.Slug + ".md"
 	var body []byte
 	metadata := []string{
 		"---",
@@ -52,10 +55,41 @@ func NewPage(title string) *Page {
 	return &Page{title, Slug.Make(title), time.Now().Format(timeFormat), []byte{}}
 }
 
+func readMetadataBlock(reader *bufio.Reader) (title, pubDate string, err error) {
+	// Expecting "---"
+	line, err := reader.ReadString('\n')
+	if err != nil || strings.TrimSpace(line) != "---" {
+		return "", "", fmt.Errorf("invalid metadata block: missing opening '---'")
+	}
+
+	// Read Title
+	titleLine, err := reader.ReadString('\n')
+	if err != nil {
+		return "", "", fmt.Errorf("invalid metadata block: missing title")
+	}
+	title = strings.TrimSpace(titleLine)
+
+	// Read PubDate
+	pubDateLine, err := reader.ReadString('\n')
+	if err != nil {
+		return "", "", fmt.Errorf("invalid metadata block: missing publication date")
+	}
+	pubDate = strings.TrimSpace(pubDateLine)
+
+	// Expecting "---"
+	line, err = reader.ReadString('\n')
+	if err != nil || strings.TrimSpace(line) != "---" {
+		return "", "", fmt.Errorf("invalid metadata block: missing closing '---'")
+	}
+
+	return title, pubDate, nil
+}
+
 // loadMetadata works like loadPage but returns Metadata in the first 4 lines,
 // ignore the rest of the file
+
 func loadMetadata(slug string) (*Metadata, error) {
-	filename := "data/" + slug + ".md"
+	filename := dataDirectory + slug + ".md"
 
 	file, err := os.Open(filename)
 	if err != nil {
@@ -64,25 +98,9 @@ func loadMetadata(slug string) (*Metadata, error) {
 	defer file.Close()
 
 	reader := bufio.NewReader(file)
-	var title string
-	var pubDate string
-
-	// read the first 4 lines
-	for range 4 {
-		line, err := reader.ReadString('\n')
-		line = line[:len(line)-1]
-		if err != nil {
-			return nil, fmt.Errorf("%w", err)
-		}
-		if line == "---" {
-			continue
-		}
-		if title == "" {
-			title = line
-			continue
-		}
-
-		pubDate = line
+	title, pubDate, err := readMetadataBlock(reader)
+	if err != nil {
+		return nil, fmt.Errorf("error reading metadata for %s: %w", slug, err)
 	}
 
 	return &Metadata{title, slug, pubDate}, nil
@@ -90,7 +108,7 @@ func loadMetadata(slug string) (*Metadata, error) {
 
 // loadPage load a markdown file, including metadata and content
 func loadPage(slug string) (*Page, error) {
-	filename := "data/" + slug + ".md"
+	filename := dataDirectory + slug + ".md"
 	file, err := os.Open(filename)
 	if err != nil {
 		return nil, err
@@ -98,25 +116,9 @@ func loadPage(slug string) (*Page, error) {
 	defer file.Close()
 
 	reader := bufio.NewReader(file)
-	var title string
-	var pubDate string
-
-	// read the first 4 lines
-	for range 4 {
-		line, err := reader.ReadString('\n')
-		line = line[:len(line)-1]
-		if err != nil {
-			return nil, fmt.Errorf("%w", err)
-		}
-		if line == "---" {
-			continue
-		}
-		if title == "" {
-			title = line
-			continue
-		}
-
-		pubDate = line
+	title, pubDate, err := readMetadataBlock(reader)
+	if err != nil {
+		return nil, fmt.Errorf("error reading metadata for %s: %w", slug, err)
 	}
 
 	rest, err := io.ReadAll(reader)
@@ -147,7 +149,8 @@ func renderTemplate(w http.ResponseWriter, tmpl string, p *Page) {
 		// parse markdown before viewing
 		var buf bytes.Buffer
 		if err = goldmark.Convert(p.Body, &buf); err != nil {
-			break
+			renderErrorTemplate(w, err)
+			return
 		}
 		err = templates.ExecuteTemplate(w, "view.html", struct {
 			Title, Slug, PubDate string
@@ -157,9 +160,10 @@ func renderTemplate(w http.ResponseWriter, tmpl string, p *Page) {
 		err = templates.ExecuteTemplate(w, "edit.html", p)
 	case "all-published":
 		today := time.Now().Format(timeFormat)
-		files, err := os.ReadDir("./data")
+		files, err := os.ReadDir(dataDirectory)
 		if err != nil {
-			break
+			renderErrorTemplate(w, err)
+			return
 		}
 		metadataSlice := []*Metadata{}
 		for _, f := range files {
@@ -177,9 +181,10 @@ func renderTemplate(w http.ResponseWriter, tmpl string, p *Page) {
 		}
 		err = templates.ExecuteTemplate(w, "all-published.html", metadataSlice)
 	case "all-admin":
-		files, err := os.ReadDir("./data")
+		files, err := os.ReadDir(dataDirectory)
 		if err != nil {
-			break
+			renderErrorTemplate(w, err)
+			return
 		}
 		metadataSlice := []*Metadata{}
 		for _, f := range files {
@@ -216,12 +221,6 @@ func (s *Server) basicAuthentication(next http.Handler) http.Handler {
 		payload, err := base64.StdEncoding.DecodeString(encodedBase64)
 		if err != nil {
 			unauthorizedResponse(w)
-			return
-		}
-
-		err = godotenv.Load()
-		if err != nil {
-			renderErrorTemplate(w, fmt.Errorf("Error occurs when loading .env file: %v", err))
 			return
 		}
 
@@ -341,7 +340,7 @@ func (s *Server) AdminUpdateArticleHandler(w http.ResponseWriter, r *http.Reques
 	newSlug := Slug.Make(title)
 	if newSlug != slug {
 		// we can safely ignore error if this one fails
-		_ = os.Remove("./data/" + slug + ".md")
+		_ = os.Remove(dataDirectory + slug + ".md")
 	}
 
 	pubDate := r.FormValue("pubdate")
@@ -370,7 +369,7 @@ func (s *Server) AdminUpdateArticleHandler(w http.ResponseWriter, r *http.Reques
 }
 
 func (s *Server) AdminDeleteArticleHandler(w http.ResponseWriter, r *http.Request, slug string) {
-	err := os.Remove("./data/" + slug + ".md")
+	err := os.Remove(dataDirectory + slug + ".md")
 	if err != nil {
 		renderErrorTemplate(w,
 			fmt.Errorf("Cannot delete article with that slug: %s\nerror: %w", slug, err),
