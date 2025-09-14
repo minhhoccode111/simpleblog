@@ -14,6 +14,7 @@ import (
 	"time"
 
 	"github.com/gorilla/mux"
+	"github.com/gosimple/slug"
 	"github.com/yuin/goldmark"
 )
 
@@ -276,14 +277,30 @@ func (s *Server) AdminIndexHandler(w http.ResponseWriter, r *http.Request) {
 	http.Redirect(w, r, "/admin/articles", http.StatusFound)
 }
 func (s *Server) AdminGetAllArticlesHandler(w http.ResponseWriter, r *http.Request) {
-	// TODO: if action=create, which mean now article found
-	// if slug=provided-slug, then redirect to `edit` since user already have a specific slug in mind
-	// else
-	// if slug=some-slug, pre-fill slug to form (or we should redirect to edit handler?)
-	// else display all articles
 	renderTemplate(w, "all-admin", nil)
 }
-func (s *Server) AdminCreateArticleHandler(w http.ResponseWriter, r *http.Request) {}
+func (s *Server) AdminCreateArticleHandler(w http.ResponseWriter, r *http.Request) {
+	if err := r.ParseForm(); err != nil {
+		renderErrorTemplate(w, err)
+		return
+	}
+	title := strings.TrimSpace(r.FormValue("title"))
+	if title == "" {
+		renderErrorTemplate(w, fmt.Errorf("The 'Title' cannot be empty"))
+		return
+	}
+	slug := slug.Make(title)
+	today := time.Now()
+	body := []byte{}
+	page := &Page{
+		title,
+		slug,
+		body,
+		today,
+	}
+	page.save()
+	http.Redirect(w, r, fmt.Sprintf("/admin/articles/%s?action=edit", slug), http.StatusSeeOther)
+}
 func (s *Server) AdminUpdateArticleGetHandler(w http.ResponseWriter, r *http.Request, slug string) {
 	page, err := loadPage(slug)
 	// error occurs and not not found file error

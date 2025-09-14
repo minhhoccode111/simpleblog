@@ -9,6 +9,10 @@
       justify-content: space-between;
       gap: 1rem;
     }
+    form,
+    p {
+      margin: 0;
+    }
     .wrapper {
       max-width: 60rem;
       margin: auto;
@@ -23,13 +27,20 @@
   <header>
     <div>
       <h1>{{.Title}}</h1>
-      <i>{{.PubDate}}</i>
+      <p>
+        <i>{{.PubDate}}</i>
+      </p>
     </div>
 
-    <form action="/admin/articles/{{.Slug}}" method="get">
-      <input type="hidden" name="action" value="edit" />
-      <input type="submit" value="Edit" />
-    </form>
+    <div>
+      <form action="/admin/articles/{{.Slug}}" method="get">
+        <input type="hidden" name="action" value="edit" />
+        <input type="submit" value="edit" />
+      </form>
+      <form action="/admin/articles/{{.Slug}}?action=delete" method="post">
+        <input type="submit" value="delete" />
+      </form>
+    </div>
   </header>
 
   <div>{{.Body}}</div>

@@ -71,7 +71,9 @@
     <ul>
       {{range .}}
       <li>
-        <p>{{.Title}}</p>
+        <p>
+          <a href="/articles/{{.Slug}}"> {{.Title}} </a>
+        </p>
         <div>
           <a href="/admin/articles/{{.Slug}}?action=edit">
             <button>edit</button>
