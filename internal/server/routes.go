@@ -316,7 +316,7 @@ func (s *Server) RegisterRoutes() http.Handler {
 	adminRouter := r.PathPrefix("/admin").Subrouter()
 	adminRouter.Use(s.basicAuthentication)
 
-	adminRouter.HandleFunc("/", s.AdminIndexHandler).Methods("GET")
+	adminRouter.HandleFunc("", s.AdminIndexHandler).Methods("GET")
 	// with ?action=create
 	adminRouter.HandleFunc("/articles", s.AdminGetAllArticlesHandler).Methods("GET")
 	adminRouter.HandleFunc("/articles", s.AdminCreateArticleHandler).Methods("POST")
