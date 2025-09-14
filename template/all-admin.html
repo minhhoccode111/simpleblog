@@ -1,5 +1,6 @@
 <head>
   <link rel="stylesheet" href="/static/index.css" />
+  <script src="/static/index.js" defer></script>
   <title>All Admin</title>
   <style>
     header,
@@ -75,10 +76,15 @@
           <a href="/articles/{{.Slug}}"> {{.Title}} </a>
         </p>
         <div>
+          <!--TODO: remove search query-->
           <a href="/admin/articles/{{.Slug}}?action=edit">
             <button>edit</button>
           </a>
-          <form action="/admin/articles/{{.Slug}}?action=delete" method="post">
+          <form
+            id="form-delete-article"
+            action="/admin/articles/{{.Slug}}?action=delete"
+            method="post"
+          >
             <button type="submit">delete</button>
           </form>
         </div>

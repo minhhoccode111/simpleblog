@@ -322,8 +322,15 @@ func (s *Server) AdminUpdateArticleGetHandler(w http.ResponseWriter, r *http.Req
 
 	renderTemplate(w, "edit", page)
 }
-func (s *Server) AdminUpdateArticleHandler(w http.ResponseWriter, r *http.Request) {}
-func (s *Server) AdminDeleteArticleHandler(w http.ResponseWriter, r *http.Request) {}
+func (s *Server) AdminUpdateArticleHandler(w http.ResponseWriter, r *http.Request, slug string) {}
+func (s *Server) AdminDeleteArticleHandler(w http.ResponseWriter, r *http.Request, slug string) {
+	err := os.Remove(fmt.Sprintf("./data/%s.md", slug))
+	if err != nil {
+		renderErrorTemplate(w, err)
+		return
+	}
+	http.Redirect(w, r, "/admin/articles", http.StatusFound)
+}
 
 // makeHandler act like a middleware that extract slug from Path and pass it to
 // handler, we might not need to use it since mux is good enough
@@ -353,12 +360,24 @@ func (s *Server) RegisterRoutes() http.Handler {
 	adminRouter.HandleFunc("", s.AdminIndexHandler).Methods("GET")
 	adminRouter.HandleFunc("/articles", s.AdminGetAllArticlesHandler).Methods("GET")
 	adminRouter.HandleFunc("/articles", s.AdminCreateArticleHandler).Methods("POST")
-	// assume that admin get to edit, so return edit view
 	adminRouter.HandleFunc("/articles/{slug}", makeHandler(s.AdminUpdateArticleGetHandler)).
 		Methods("GET")
-	// with ?action=edit because a html form can't send PUT request
-	adminRouter.HandleFunc("/articles/{slug}", s.AdminUpdateArticleHandler).Methods("POST")
-	// with ?action=delete because a html form can't send DELETE request
-	adminRouter.HandleFunc("/articles/{slug}", s.AdminDeleteArticleHandler).Methods("POST")
+
+	// with ?action=edit or ?action=delete because <form> can't send PUT or DELETE request
+	adminRouter.HandleFunc("/articles/{slug}", func(w http.ResponseWriter, r *http.Request) {
+		action := r.URL.Query().Get("action")
+
+		switch action {
+		case "edit":
+			editHandler := makeHandler(s.AdminUpdateArticleHandler)
+			editHandler(w, r)
+		case "delete":
+			deleteHandler := makeHandler(s.AdminDeleteArticleHandler)
+			deleteHandler(w, r)
+		default:
+			// TODO:
+		}
+	}).Methods("POST")
+
 	return r
 }

@@ -1,5 +1,6 @@
 <head>
   <link rel="stylesheet" href="/static/index.css" />
+  <script src="/static/index.js" defer></script>
   <title>View Article</title>
   <style>
     header,
@@ -20,6 +21,9 @@
     .right {
       text-align: right;
     }
+    .no-wrap {
+      white-space: nowrap;
+    }
   </style>
 </head>
 
@@ -27,17 +31,21 @@
   <header>
     <div>
       <h1>{{.Title}}</h1>
-      <p>
+      <p class="no-wrap">
         <i>{{.PubDate}}</i>
       </p>
     </div>
 
     <div>
+      <!--TODO: use a link-->
       <form action="/admin/articles/{{.Slug}}" method="get">
-        <input type="hidden" name="action" value="edit" />
         <input type="submit" value="edit" />
       </form>
-      <form action="/admin/articles/{{.Slug}}?action=delete" method="post">
+      <form
+        id="form-delete-article"
+        action="/admin/articles/{{.Slug}}?action=delete"
+        method="post"
+      >
         <input type="submit" value="delete" />
       </form>
     </div>
