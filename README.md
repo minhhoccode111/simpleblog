@@ -17,18 +17,14 @@ Simple Personal Blog with Basic Authentication
 
 ## Features
 
-- CRUD article
-- Parse `[[link]]` syntax to be wikilinks
-
-## Getting Started
-
-These instructions will get you a copy of the project up and running on your
-local machine for development and testing purposes. See deployment for notes on
-how to deploy the project on a live system.
+- CRUD articles
+- Basic Authentication
+- Wiki links style
 
 ## Todo
 
 - [ ] Manage static files like images and videos to be used in our blog
+- [ ] Filter, search, sort and paginate articles
 
 ## MakeFile
 

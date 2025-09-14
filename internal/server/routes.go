@@ -9,12 +9,11 @@ import (
 	"io"
 	"net/http"
 	"os"
-	"regexp"
 	"strings"
 	"time"
 
 	"github.com/gorilla/mux"
-	"github.com/gosimple/slug"
+	Slug "github.com/gosimple/slug"
 	"github.com/joho/godotenv"
 	"github.com/yuin/goldmark"
 )
@@ -32,8 +31,6 @@ type Metadata struct {
 const timeFormat = "2006-01-02"
 
 var templates = template.Must(template.ParseGlob("template/*.html"))
-var linkRegex = regexp.MustCompile(`\[(.*?)\]`)
-var validPath = regexp.MustCompile(`^/(admin/)?(articles(/([a-zA-Z0-9-]+))?/?(\?.*)?)?$`)
 
 func (p *Page) save() error {
 	filename := "data/" + p.Slug + ".md"
@@ -52,7 +49,7 @@ func (p *Page) save() error {
 }
 
 func NewPage(title string) *Page {
-	return &Page{title, slug.Make(title), time.Now().Format(timeFormat), []byte{}}
+	return &Page{title, Slug.Make(title), time.Now().Format(timeFormat), []byte{}}
 }
 
 // loadMetadata works like loadPage but returns Metadata in the first 4 lines,
@@ -68,7 +65,7 @@ func loadMetadata(slug string) (*Metadata, error) {
 
 	reader := bufio.NewReader(file)
 	var title string
-	var pubDate time.Time
+	var pubDate string
 
 	// read the first 4 lines
 	for range 4 {
@@ -85,14 +82,10 @@ func loadMetadata(slug string) (*Metadata, error) {
 			continue
 		}
 
-		lineTime, err := time.Parse(timeFormat, line)
-		if err != nil {
-			return nil, fmt.Errorf("%w", err)
-		}
-		pubDate = lineTime
+		pubDate = line
 	}
 
-	return &Metadata{title, slug, pubDate.Format(timeFormat)}, nil
+	return &Metadata{title, slug, pubDate}, nil
 }
 
 // loadPage load a markdown file, including metadata and content
@@ -344,6 +337,13 @@ func (s *Server) AdminUpdateArticleHandler(w http.ResponseWriter, r *http.Reques
 		return
 	}
 
+	// generate new slug based on title and remove old one
+	newSlug := Slug.Make(title)
+	if newSlug != slug {
+		// we can safely ignore error if this one fails
+		_ = os.Remove("./data/" + slug + ".md")
+	}
+
 	pubDate := r.FormValue("pubdate")
 	_, err := time.Parse(timeFormat, pubDate)
 	if err != nil {
@@ -353,7 +353,7 @@ func (s *Server) AdminUpdateArticleHandler(w http.ResponseWriter, r *http.Reques
 	body := []byte(r.FormValue("body"))
 	page := &Page{
 		title,
-		slug,
+		newSlug,
 		pubDate,
 		body,
 	}
@@ -365,7 +365,8 @@ func (s *Server) AdminUpdateArticleHandler(w http.ResponseWriter, r *http.Reques
 		)
 		return
 	}
-	http.Redirect(w, r, "/admin", http.StatusFound)
+
+	http.Redirect(w, r, "/admin", http.StatusSeeOther)
 }
 
 func (s *Server) AdminDeleteArticleHandler(w http.ResponseWriter, r *http.Request, slug string) {
@@ -377,7 +378,7 @@ func (s *Server) AdminDeleteArticleHandler(w http.ResponseWriter, r *http.Reques
 		return
 	}
 
-	http.Redirect(w, r, "/admin/articles", http.StatusFound)
+	http.Redirect(w, r, "/admin/articles", http.StatusSeeOther)
 }
 
 // makeHandler act like a middleware that extract slug from Path and pass it to
@@ -405,7 +406,10 @@ func (s *Server) RegisterRoutes() http.Handler {
 	adminRouter := r.PathPrefix("/admin").Subrouter()
 	adminRouter.Use(s.basicAuthentication)
 
+	// NOTE: weird case when "" is not "/"
 	adminRouter.HandleFunc("", s.AdminIndexHandler).Methods("GET")
+	adminRouter.HandleFunc("/", s.AdminIndexHandler).Methods("GET")
+
 	adminRouter.HandleFunc("/articles", s.AdminGetAllArticlesHandler).Methods("GET")
 	adminRouter.HandleFunc("/articles", s.AdminCreateArticleHandler).Methods("POST")
 	// assume edit view
@@ -424,7 +428,9 @@ func (s *Server) RegisterRoutes() http.Handler {
 			deleteHandler := makeHandler(s.AdminDeleteArticleHandler)
 			deleteHandler(w, r)
 		default:
-			http.Redirect(w, r, "/admin", http.StatusFound)
+			renderErrorTemplate(w,
+				fmt.Errorf("POST to this route with either 'edit' or 'delete' action"),
+			)
 		}
 	}).Methods("POST")
 
