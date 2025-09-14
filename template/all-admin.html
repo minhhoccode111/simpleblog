@@ -51,6 +51,7 @@
 <div class="wrapper">
   <header>
     <h1>All Articles</h1>
+    <a href="/">view as guest</a>
   </header>
 
   <main>
@@ -76,8 +77,7 @@
           <a href="/articles/{{.Slug}}"> {{.Title}} </a>
         </p>
         <div>
-          <!--TODO: remove search query-->
-          <a href="/admin/articles/{{.Slug}}?action=edit">
+          <a href="/admin/articles/{{.Slug}}">
             <button>edit</button>
           </a>
           <form

@@ -15,14 +15,13 @@ import (
 
 	"github.com/gorilla/mux"
 	"github.com/gosimple/slug"
+	"github.com/joho/godotenv"
 	"github.com/yuin/goldmark"
 )
 
 type Page struct {
-	Title   string
-	Slug    string
-	Body    []byte
-	PubDate time.Time
+	Title, Slug, PubDate string
+	Body                 []byte
 }
 
 type Metadata struct {
@@ -42,7 +41,7 @@ func (p *Page) save() error {
 	metadata := []string{
 		"---",
 		p.Title,
-		p.PubDate.Format(timeFormat),
+		p.PubDate,
 		"---",
 	}
 
@@ -52,7 +51,12 @@ func (p *Page) save() error {
 	return os.WriteFile(filename, body, 0600)
 }
 
-// loadMetadata works like loadPage but returns Metadata, ignore the Body for performance
+func NewPage(title string) *Page {
+	return &Page{title, slug.Make(title), time.Now().Format(timeFormat), []byte{}}
+}
+
+// loadMetadata works like loadPage but returns Metadata in the first 4 lines,
+// ignore the rest of the file
 func loadMetadata(slug string) (*Metadata, error) {
 	filename := "data/" + slug + ".md"
 
@@ -91,6 +95,7 @@ func loadMetadata(slug string) (*Metadata, error) {
 	return &Metadata{title, slug, pubDate.Format(timeFormat)}, nil
 }
 
+// loadPage load a markdown file, including metadata and content
 func loadPage(slug string) (*Page, error) {
 	filename := "data/" + slug + ".md"
 	file, err := os.Open(filename)
@@ -101,7 +106,7 @@ func loadPage(slug string) (*Page, error) {
 
 	reader := bufio.NewReader(file)
 	var title string
-	var pubDate time.Time
+	var pubDate string
 
 	// read the first 4 lines
 	for range 4 {
@@ -118,11 +123,7 @@ func loadPage(slug string) (*Page, error) {
 			continue
 		}
 
-		lineTime, err := time.Parse(timeFormat, line)
-		if err != nil {
-			return nil, fmt.Errorf("%w", err)
-		}
-		pubDate = lineTime
+		pubDate = line
 	}
 
 	rest, err := io.ReadAll(reader)
@@ -130,11 +131,11 @@ func loadPage(slug string) (*Page, error) {
 		return nil, fmt.Errorf("%w", err)
 	}
 
-	return &Page{title, slug, rest, pubDate}, nil
+	return &Page{title, slug, pubDate, rest}, nil
 }
 
+// renderErrorTemplate render errors for end-user
 func renderErrorTemplate(w http.ResponseWriter, err error) {
-	// try to render error
 	err = templates.ExecuteTemplate(w, "error.html", err.Error())
 	if err != nil {
 		http.Error(
@@ -158,12 +159,9 @@ func renderTemplate(w http.ResponseWriter, tmpl string, p *Page) {
 		err = templates.ExecuteTemplate(w, "view.html", struct {
 			Title, Slug, PubDate string
 			Body                 template.HTML
-		}{p.Title, p.Slug, p.PubDate.Format(timeFormat), template.HTML(buf.String())})
+		}{p.Title, p.Slug, p.PubDate, template.HTML(buf.String())})
 	case "edit":
-		err = templates.ExecuteTemplate(w, "edit.html", struct {
-			Title, Slug, PubDate string
-			Body                 []byte
-		}{p.Title, p.Slug, p.PubDate.Format(timeFormat), p.Body})
+		err = templates.ExecuteTemplate(w, "edit.html", p)
 	case "all-published":
 		today := time.Now().Format(timeFormat)
 		files, err := os.ReadDir("./data")
@@ -228,13 +226,21 @@ func (s *Server) basicAuthentication(next http.Handler) http.Handler {
 			return
 		}
 
+		err = godotenv.Load()
+		if err != nil {
+			renderErrorTemplate(w, fmt.Errorf("Error occurs when loading .env file: %v", err))
+			return
+		}
+
 		parts := strings.SplitN(string(payload), ":", 2)
-		if parts[0] != "admin" || parts[1] != "admin" {
+		username := os.Getenv("ADMIN_USERNAME")
+		password := os.Getenv("ADMIN_PASSWORD")
+		// log.Printf("logged in: %v username: %v, password: %v", parts, username, password)
+		if parts[0] != username || parts[1] != password {
 			unauthorizedResponse(w)
 			return
 		}
 
-		// log.Printf("logged in: %v", parts)
 		next.ServeHTTP(w, r)
 	})
 }
@@ -248,23 +254,18 @@ func (s *Server) GetAllPublishedArticlesHandler(w http.ResponseWriter, r *http.R
 }
 func (s *Server) GetPublishedArticleHandler(w http.ResponseWriter, r *http.Request, slug string) {
 	page, err := loadPage(slug)
-	if err != nil && os.IsNotExist(err) {
-		http.Redirect(
-			w,
-			r,
-			fmt.Sprintf("/admin/articles?action=create&slug=%s", slug),
-			http.StatusSeeOther,
-		)
+	if os.IsNotExist(err) {
+		http.Redirect(w, r, "/admin/articles/"+slug, http.StatusSeeOther)
 		return
 	}
 
 	if err != nil {
-		renderErrorTemplate(w, err)
+		renderErrorTemplate(w, fmt.Errorf("Cannot load that slug: %s\nerror: %w", slug, err))
 		return
 	}
 
 	today := time.Now().Format(timeFormat)
-	if page.PubDate.Format(timeFormat) > today {
+	if page.PubDate > today {
 		renderErrorTemplate(w, fmt.Errorf("Unpublished Article"))
 		return
 	}
@@ -281,54 +282,101 @@ func (s *Server) AdminGetAllArticlesHandler(w http.ResponseWriter, r *http.Reque
 }
 func (s *Server) AdminCreateArticleHandler(w http.ResponseWriter, r *http.Request) {
 	if err := r.ParseForm(); err != nil {
-		renderErrorTemplate(w, err)
+		renderErrorTemplate(w, fmt.Errorf("Error occurs when parsing form: %w", err))
 		return
 	}
+
 	title := strings.TrimSpace(r.FormValue("title"))
 	if title == "" {
 		renderErrorTemplate(w, fmt.Errorf("The 'Title' cannot be empty"))
 		return
 	}
-	slug := slug.Make(title)
-	today := time.Now()
-	body := []byte{}
-	page := &Page{
-		title,
-		slug,
-		body,
-		today,
+
+	page := NewPage(title)
+	err := page.save()
+	if err != nil {
+		renderErrorTemplate(
+			w,
+			fmt.Errorf("Cannot create article with that slug: %s\nerror: %w", page.Slug, err),
+		)
+		return
 	}
-	page.save()
-	http.Redirect(w, r, fmt.Sprintf("/admin/articles/%s?action=edit", slug), http.StatusSeeOther)
+
+	http.Redirect(w, r, "/admin/articles/"+page.Slug, http.StatusSeeOther)
 }
+
 func (s *Server) AdminUpdateArticleGetHandler(w http.ResponseWriter, r *http.Request, slug string) {
 	page, err := loadPage(slug)
 	// error occurs and not not found file error
 	if err != nil {
 		if !os.IsNotExist(err) {
-			renderErrorTemplate(w, err)
+			renderErrorTemplate(w, fmt.Errorf("Cannot load that slug: %s\nerror: %w", slug, err))
 			return
 		}
 
-		// not found file, redirect to create
-		http.Redirect(
-			w,
-			r,
-			fmt.Sprintf("/admin/articles?action=create&slug=%s", slug),
-			http.StatusSeeOther,
-		)
+		// not found file, then we create, and redirect to edit it
+		// though this is not likely gonna happen
+		page := NewPage(slug)
+		err := page.save()
+		if err != nil {
+			renderErrorTemplate(w,
+				fmt.Errorf("Cannot create new page with %s slug: - error: %w", slug, err),
+			)
+			return
+		}
+
+		http.Redirect(w, r, "/admin/articles/"+slug, http.StatusSeeOther)
 		return
 	}
 
 	renderTemplate(w, "edit", page)
 }
-func (s *Server) AdminUpdateArticleHandler(w http.ResponseWriter, r *http.Request, slug string) {}
-func (s *Server) AdminDeleteArticleHandler(w http.ResponseWriter, r *http.Request, slug string) {
-	err := os.Remove(fmt.Sprintf("./data/%s.md", slug))
-	if err != nil {
-		renderErrorTemplate(w, err)
+
+func (s *Server) AdminUpdateArticleHandler(w http.ResponseWriter, r *http.Request, slug string) {
+	if err := r.ParseForm(); err != nil {
+		renderErrorTemplate(w, fmt.Errorf("Error occurs when parsing form: %w", err))
 		return
 	}
+
+	title := strings.TrimSpace(r.FormValue("title"))
+	if title == "" {
+		renderErrorTemplate(w, fmt.Errorf("Title cannot be empty"))
+		return
+	}
+
+	pubDate := r.FormValue("pubdate")
+	_, err := time.Parse(timeFormat, pubDate)
+	if err != nil {
+		renderErrorTemplate(w, fmt.Errorf("pubDate is not valid: %w", err))
+	}
+
+	body := []byte(r.FormValue("body"))
+	page := &Page{
+		title,
+		slug,
+		pubDate,
+		body,
+	}
+
+	err = page.save()
+	if err != nil {
+		renderErrorTemplate(w,
+			fmt.Errorf("Cannot update article with that slug: %s\nerror: %w", page.Slug, err),
+		)
+		return
+	}
+	http.Redirect(w, r, "/admin", http.StatusFound)
+}
+
+func (s *Server) AdminDeleteArticleHandler(w http.ResponseWriter, r *http.Request, slug string) {
+	err := os.Remove("./data/" + slug + ".md")
+	if err != nil {
+		renderErrorTemplate(w,
+			fmt.Errorf("Cannot delete article with that slug: %s\nerror: %w", slug, err),
+		)
+		return
+	}
+
 	http.Redirect(w, r, "/admin/articles", http.StatusFound)
 }
 
@@ -360,6 +408,7 @@ func (s *Server) RegisterRoutes() http.Handler {
 	adminRouter.HandleFunc("", s.AdminIndexHandler).Methods("GET")
 	adminRouter.HandleFunc("/articles", s.AdminGetAllArticlesHandler).Methods("GET")
 	adminRouter.HandleFunc("/articles", s.AdminCreateArticleHandler).Methods("POST")
+	// assume edit view
 	adminRouter.HandleFunc("/articles/{slug}", makeHandler(s.AdminUpdateArticleGetHandler)).
 		Methods("GET")
 
@@ -375,7 +424,7 @@ func (s *Server) RegisterRoutes() http.Handler {
 			deleteHandler := makeHandler(s.AdminDeleteArticleHandler)
 			deleteHandler(w, r)
 		default:
-			// TODO:
+			http.Redirect(w, r, "/admin", http.StatusFound)
 		}
 	}).Methods("POST")
 

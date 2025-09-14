@@ -37,10 +37,10 @@
     </div>
 
     <div>
-      <!--TODO: use a link-->
-      <form action="/admin/articles/{{.Slug}}" method="get">
-        <input type="submit" value="edit" />
-      </form>
+      <a href="/admin/articles/{{.Slug}}">
+        <button>edit</button>
+      </a>
+
       <form
         id="form-delete-article"
         action="/admin/articles/{{.Slug}}?action=delete"
