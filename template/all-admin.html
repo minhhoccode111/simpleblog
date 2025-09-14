@@ -74,6 +74,8 @@
       {{range .}}
       <li>
         <p>
+          <span>{{.PubDate}}</span>
+          <span> - </span>
           <a href="/articles/{{.Slug}}"> {{.Title}} </a>
         </p>
         <div>
@@ -81,7 +83,7 @@
             <button>edit</button>
           </a>
           <form
-            id="form-delete-article"
+            data-form-delete-article="form-delete-article"
             action="/admin/articles/{{.Slug}}?action=delete"
             method="post"
           >
