@@ -7,7 +7,6 @@ import (
 	"fmt"
 	"html/template"
 	"io"
-	"log"
 	"net/http"
 	"os"
 	"regexp"
@@ -175,6 +174,7 @@ func renderTemplate(w http.ResponseWriter, tmpl string, p *Page) {
 			slug := strings.TrimSuffix(f.Name(), ".md")
 			metadata, err := loadMetadata(slug)
 			if err != nil {
+				// because we can't use `break` to exit the switch so we render error view right here
 				renderErrorTemplate(w, err)
 				return
 			}
@@ -185,7 +185,21 @@ func renderTemplate(w http.ResponseWriter, tmpl string, p *Page) {
 		}
 		err = templates.ExecuteTemplate(w, "all-published.html", metadataSlice)
 	case "all-admin":
-		err = templates.ExecuteTemplate(w, "all-admin.html", nil)
+		files, err := os.ReadDir("./data")
+		if err != nil {
+			break
+		}
+		metadataSlice := []*Metadata{}
+		for _, f := range files {
+			slug := strings.TrimSuffix(f.Name(), ".md")
+			metadata, err := loadMetadata(slug)
+			if err != nil {
+				renderErrorTemplate(w, err)
+				return
+			}
+			metadataSlice = append(metadataSlice, metadata)
+		}
+		err = templates.ExecuteTemplate(w, "all-admin.html", metadataSlice)
 	}
 
 	if err != nil {
@@ -219,7 +233,7 @@ func (s *Server) basicAuthentication(next http.Handler) http.Handler {
 			return
 		}
 
-		log.Printf("logged in: %v", parts)
+		// log.Printf("logged in: %v", parts)
 		next.ServeHTTP(w, r)
 	})
 }
@@ -262,9 +276,12 @@ func (s *Server) AdminIndexHandler(w http.ResponseWriter, r *http.Request) {
 	http.Redirect(w, r, "/admin/articles", http.StatusFound)
 }
 func (s *Server) AdminGetAllArticlesHandler(w http.ResponseWriter, r *http.Request) {
-	// TODO: if action=create, display create form
+	// TODO: if action=create, which mean now article found
+	// if slug=provided-slug, then redirect to `edit` since user already have a specific slug in mind
+	// else
 	// if slug=some-slug, pre-fill slug to form (or we should redirect to edit handler?)
 	// else display all articles
+	renderTemplate(w, "all-admin", nil)
 }
 func (s *Server) AdminCreateArticleHandler(w http.ResponseWriter, r *http.Request) {}
 func (s *Server) AdminUpdateArticleGetHandler(w http.ResponseWriter, r *http.Request, slug string) {
@@ -317,7 +334,6 @@ func (s *Server) RegisterRoutes() http.Handler {
 	adminRouter.Use(s.basicAuthentication)
 
 	adminRouter.HandleFunc("", s.AdminIndexHandler).Methods("GET")
-	// with ?action=create
 	adminRouter.HandleFunc("/articles", s.AdminGetAllArticlesHandler).Methods("GET")
 	adminRouter.HandleFunc("/articles", s.AdminCreateArticleHandler).Methods("POST")
 	// assume that admin get to edit, so return edit view

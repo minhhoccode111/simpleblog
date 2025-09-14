@@ -2,11 +2,26 @@
   <link rel="stylesheet" href="/static/index.css" />
   <title>All Admin</title>
   <style>
-    header {
+    header,
+    li {
       display: flex;
       align-items: center;
       justify-content: space-between;
       gap: 1rem;
+    }
+    ul {
+      list-style: none;
+      padding: 0;
+    }
+    li p,
+    li form {
+      margin: 0;
+      line-height: 2.5;
+    }
+    li div {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
     }
     .wrapper {
       max-width: 60rem;
@@ -15,17 +30,58 @@
     .right {
       text-align: right;
     }
+    .field {
+      display: flex;
+      align-items: center;
+      gap: 1rem;
+      margin-bottom: 1rem;
+    }
+    .field label {
+      flex-shrink: 0; /* Prevent label from shrinking */
+      min-width: 120px; /* Set minimum width for labels */
+    }
+
+    .field input {
+      flex: 1; /* Take all remaining space */
+    }
   </style>
 </head>
 
 <div class="wrapper">
   <header>
-    <h1>{{.Title}}</h1>
-
-    <form action="/admin/articles?action=create" method="get">
-      <button type="submit">Add</button>
-    </form>
+    <h1>All Articles</h1>
   </header>
 
-  <main>{{.Body}}</main>
+  <main>
+    <form action="/admin/articles" method="post">
+      <div class="field">
+        <label for="title">Title:</label>
+        <input
+          id="title"
+          type="text"
+          name="title"
+          required
+          minlength="2"
+          maxlength="255"
+        />
+        <button type="submit">create</button>
+      </div>
+    </form>
+
+    <ul>
+      {{range .}}
+      <li>
+        <p>{{.Title}}</p>
+        <div>
+          <a href="/admin/articles/{{.Slug}}?action=edit">
+            <button>edit</button>
+          </a>
+          <form action="/admin/articles/{{.Slug}}?action=delete" method="post">
+            <button type="submit">delete</button>
+          </form>
+        </div>
+      </li>
+      {{end}}
+    </ul>
+  </main>
 </div>
